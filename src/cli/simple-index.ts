@@ -48,6 +48,7 @@ function setupProgram(): void {
   // Global options - simplified
   program
     .option('-v, --verbose', 'Enable verbose output')
+    .option('--provider <provider>', 'Provider to use (gemini|openai)')
     .option('--model <name>', 'Model to use (gemini-1.5-flash, gemini-1.5-pro)')
     .option('--temperature <temp>', 'Temperature (0-2)', parseFloat, 0.7)
     .option('--max-tokens <tokens>', 'Maximum tokens', parseInt, 1000000)

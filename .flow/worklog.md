@@ -1,0 +1,6 @@
+- Initialized OpenAI provider feature work
+- Added dependencies openai and ajv
+- Implemented provider architecture with Gemini and OpenAI providers
+- Added CLI flag and config for provider/model selection
+- Integrated OpenAI provider with retries, streaming, and tool support
+- Updated docs, changelog, and environment example

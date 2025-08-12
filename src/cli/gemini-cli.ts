@@ -12,8 +12,11 @@ import * as fs from 'fs';
 import { SimpleAuth } from '../core/simple-auth.js';
 import { SimpleInteractive } from './simple-interactive.js';
 import { Logger } from '../utils/logger.js';
+import { createProvider } from '../providers/index.js';
+import { join } from 'path';
 
 export interface GeminiCLIOptions {
+  provider?: string;
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -48,6 +51,8 @@ export class GeminiCLI {
   private program: Command;
   private auth: SimpleAuth;
   private logger: Logger;
+  private defaultProvider = 'gemini';
+  private defaultModel = 'gemini-1.5-flash';
   
   // Available models
   private readonly availableModels = [
@@ -75,9 +80,23 @@ export class GeminiCLI {
     this.program = new Command();
     this.auth = new SimpleAuth();
     this.logger = new Logger('GeminiCLI');
-    
+
+    this.loadDefaultsFromConfig();
     this.setupProgram();
     this.setupCommands();
+  }
+
+  private loadDefaultsFromConfig(): void {
+    try {
+      const cfgPath = join(process.cwd(), '.gemini-flow-config.json');
+      if (fs.existsSync(cfgPath)) {
+        const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+        if (typeof cfg.provider === 'string') this.defaultProvider = cfg.provider;
+        if (typeof cfg.model === 'string') this.defaultModel = cfg.model;
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   /**
@@ -97,7 +116,8 @@ export class GeminiCLI {
 
     // Global options
     this.program
-      .option('-m, --model <model>', 'model to use', 'gemini-1.5-flash')
+      .option('--provider <provider>', 'provider to use (gemini|openai)', this.defaultProvider)
+      .option('-m, --model <model>', 'model to use', this.defaultModel)
       .option('-t, --temperature <temp>', 'temperature (0-2)', parseFloat, 0.7)
       .option('--max-tokens <tokens>', 'maximum tokens', parseInt, 1000000)
       .option('-v, --verbose', 'verbose output')
@@ -250,7 +270,8 @@ Get your API key from: https://aistudio.google.com/app/apikey
 
     // Start interactive mode
     const interactiveMode = new SimpleInteractive({
-      model: options.model || 'gemini-1.5-flash',
+      provider: options.provider || this.defaultProvider,
+      model: options.model || this.defaultModel,
       maxTokens: options.maxTokens || 1000000,
       temperature: options.temperature || 0.7,
       sessionId: (options as any).session,
@@ -347,48 +368,34 @@ Get your API key from: https://aistudio.google.com/app/apikey
    */
   async generateContent(prompt: string, options: GeminiCLIOptions = {}): Promise<GenerateResponse> {
     const startTime = performance.now();
-    
+
     try {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      
-      const genAI = new GoogleGenerativeAI(this.auth.getApiKey()!);
-      
-      // Model configuration
-      const modelConfig: any = {
-        model: options.model || 'gemini-1.5-flash',
-        generationConfig: {
-          temperature: options.temperature || 0.7,
-          maxOutputTokens: Math.min(4096, (options.maxTokens || 1000000) / 4),
-        }
-      };
-
-      // Add system instruction if provided
+      const providerName = options.provider || this.defaultProvider;
+      const provider = createProvider(
+        providerName,
+        providerName === 'gemini' ? this.auth.getApiKey()! : undefined
+      );
+      const messages: any[] = [];
       if (options.system) {
-        modelConfig.systemInstruction = options.system;
+        messages.push({ role: 'system', content: options.system });
       }
+      messages.push({ role: 'user', content: prompt });
 
-      const model = genAI.getGenerativeModel(modelConfig);
-      
-      // Generate content
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
+      const { message, usage } = await provider.complete({
+        model: options.model || this.defaultModel,
+        messages,
+        jsonMode: options.json,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens
+      });
+
       const endTime = performance.now();
       const latency = endTime - startTime;
 
-      // Estimate token usage (approximation)
-      const promptTokens = this.estimateTokens(prompt);
-      const completionTokens = this.estimateTokens(text);
-
       return {
-        text,
-        usage: {
-          promptTokens,
-          completionTokens,
-          totalTokens: promptTokens + completionTokens
-        },
-        model: options.model || 'gemini-1.5-flash',
+        text: message.content,
+        usage: usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        model: options.model || this.defaultModel,
         latency
       };
 
