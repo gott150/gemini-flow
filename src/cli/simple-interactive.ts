@@ -9,8 +9,10 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { SimpleAuth } from '../core/simple-auth.js';
 import { Logger } from '../utils/logger.js';
+import { createProvider } from '../providers/index.js';
 
 export interface InteractiveOptions {
+  provider?: string;
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -35,6 +37,7 @@ export class SimpleInteractive {
     this.auth = new SimpleAuth();
     this.logger = new Logger('SimpleInteractive');
     this.options = {
+      provider: options.provider || 'gemini',
       model: options.model || 'gemini-1.5-flash',
       temperature: options.temperature || 0.7,
       maxTokens: options.maxTokens || 1000000,
@@ -90,14 +93,19 @@ export class SimpleInteractive {
    * Start interactive mode
    */
   async start(): Promise<void> {
-    // Check authentication
-    if (!this.auth.isAuthenticated()) {
-      console.log(chalk.red('❌ Authentication required'));
-      console.log(chalk.yellow('\nPlease set your Google AI API key:'));
-      console.log(chalk.cyan('  gemini-flow auth --key YOUR_API_KEY'));
-      console.log(chalk.gray('\nOr set environment variable:'));
-      console.log(chalk.cyan('  export GEMINI_API_KEY="your-api-key-here"'));
-      console.log(chalk.gray('\nGet your API key from: https://aistudio.google.com/app/apikey'));
+    // Check authentication depending on provider
+    if (this.options.provider === 'gemini') {
+      if (!this.auth.isAuthenticated()) {
+        console.log(chalk.red('❌ Authentication required'));
+        console.log(chalk.yellow('\nPlease set your Google AI API key:'));
+        console.log(chalk.cyan('  gemini-flow auth --key YOUR_API_KEY'));
+        console.log(chalk.gray('\nOr set environment variable:'));
+        console.log(chalk.cyan('  export GEMINI_API_KEY="your-api-key-here"'));
+        console.log(chalk.gray('\nGet your API key from: https://aistudio.google.com/app/apikey'));
+        process.exit(1);
+      }
+    } else if (!process.env.OPENAI_API_KEY) {
+      console.log(chalk.red('❌ OPENAI_API_KEY not set'));
       process.exit(1);
     }
 
@@ -244,46 +252,41 @@ export class SimpleInteractive {
     const startTime = performance.now();
 
     try {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(this.auth.getApiKey()!);
+      const providerName = this.options.provider || 'gemini';
+      const provider = createProvider(
+        providerName,
+        providerName === 'gemini' ? this.auth.getApiKey()! : undefined
+      );
 
-      const model = genAI.getGenerativeModel({
-        model: this.options.model || 'gemini-1.5-flash',
-        generationConfig: {
-          temperature: this.options.temperature || 0.7,
-          maxOutputTokens: Math.min(4096, (this.options.maxTokens || 1000000) / 4),
-        }
-      });
-
-      // Build conversation context from history
-      const chatHistory = this.history.slice(-10).map(entry => ({
-        role: entry.role === 'user' ? 'user' : 'model',
-        parts: [{ text: entry.content }]
+      const messages = this.history.slice(-10).map((h) => ({
+        role: h.role,
+        content: h.content
       }));
+      messages.push({ role: 'user', content: prompt });
 
-      const chat = model.startChat({
-        history: chatHistory.slice(0, -1) // Exclude current message
+      const { message, usage } = await provider.complete({
+        model: this.options.model || 'gemini-1.5-flash',
+        messages,
+        temperature: this.options.temperature,
+        maxTokens: this.options.maxTokens
       });
-
-      const result = await chat.sendMessage(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const text = message.content;
 
       const endTime = performance.now();
       const latency = endTime - startTime;
 
-      // Estimate token usage
-      const promptTokens = this.estimateTokens(prompt);
-      const completionTokens = this.estimateTokens(text);
+      const usageInfo =
+        usage || {
+          promptTokens: this.estimateTokens(prompt),
+          completionTokens: this.estimateTokens(text),
+          totalTokens:
+            this.estimateTokens(prompt) + this.estimateTokens(text),
+        };
 
       return {
         text,
-        usage: {
-          promptTokens,
-          completionTokens,
-          totalTokens: promptTokens + completionTokens
-        },
-        latency
+        usage: usageInfo,
+        latency,
       };
 
     } catch (error) {

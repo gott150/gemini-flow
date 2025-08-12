@@ -15,6 +15,32 @@
 
 ---
 
+## Using OpenAI as a Provider
+
+Gemini-Flow now supports OpenAI models alongside Gemini. To enable:
+
+1. Install the SDK:
+
+```bash
+npm install openai
+```
+
+2. Configure environment variables (see `.env.example`). At minimum set `OPENAI_API_KEY`.
+
+3. Run the CLI with OpenAI:
+
+```bash
+gemini-flow chat --provider openai --model gpt-4o-mini
+```
+
+JSON mode and tool/function calling work the same as with Gemini using `--json` and tool specifications. Streaming responses are also supported.
+
+**Troubleshooting**: Handle rate limits by adjusting `OPENAI_MAX_RETRIES` and `OPENAI_BASE_DELAY_MS`. For proxies or self-hosted gateways use `OPENAI_BASE_URL`.
+
+> Existing Gemini workflows continue to work without changes.
+
+---
+
 ## 📅 Development Diary - v1.1 Active Development
 
 > **Latest Updates**: Real-time insights from our development journey
