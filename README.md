@@ -336,3 +336,28 @@ MIT License - Because the future should be open source.
 ### ⭐ [Star us on GitHub](https://github.com/clduab11/gemini-flow) | 🚀 [Try the Demo](https://parallax-ai.app) ⭐
 
 </div>
+
+## Using OpenAI as a Provider
+
+Gemini-Flow can use OpenAI models as an alternative to Gemini. Install the SDK:
+
+```bash
+npm i openai
+```
+
+Configure credentials in `.env`:
+
+```
+OPENAI_API_KEY=sk-...
+OPENAI_DEFAULT_MODEL=gpt-4o-mini
+```
+
+Use the CLI with provider and model overrides:
+
+```bash
+flow plan "hello" --provider openai --model gpt-4o-mini
+flow run  "what time is it?" --provider openai --model gpt-4o-mini
+```
+
+Streaming, tool calling, and JSON mode are available through the unified provider interface.
+

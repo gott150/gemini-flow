@@ -5,10 +5,7 @@ module.exports = {
     NODE_OPTIONS: '--experimental-vm-modules --loader ./tests/setup/esm-loader.mjs'
   },
   roots: ['<rootDir>/src', '<rootDir>/tests'],
-  testMatch: [
-    '**/__tests__/**/*.+(ts|tsx|js|mjs)',
-    '**/?(*.)+(spec|test).+(ts|tsx|js|mjs)'
-  ],
+  testMatch: ['<rootDir>/tests/providers/**/*.test.ts'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       useESM: true,

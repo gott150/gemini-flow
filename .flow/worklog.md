@@ -1,0 +1,3 @@
+- Added provider abstraction with OpenAI integration
+- Implemented runtime tool-calling bridge and CLI flags
+- Documented OpenAI usage and updated environment example
